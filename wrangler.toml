@@ -1,0 +1,6 @@
+name = "jacks"
+main = "src/index.ts"
+compatibility_date = "2024-07-01"
+kv_namespaces = [
+  { binding = "JACKS", id = "374bc519a5b744e794735e6784cd5fbf" }
+]
