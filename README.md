@@ -2,8 +2,10 @@
 
 [Jack's gelato](https://www.jacksgelato.com/) is the best ice-cream shop
 in Cambridge, UK - but it's not the *only* ice-cream shop in Cambridge.
+
 On the other hand https://jacks.tsundoku.io/ is both the best API for
-Jack's gelato *and* the only API for Jack's gelato.
+Jack's gelato *and* the only API for Jack's gelato - so which are you
+eating when push come to shove.
 
 ## Usage
 
