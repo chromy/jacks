@@ -30,6 +30,8 @@ export interface Env {
 const KV_CACHED_RESPONSE_KEY = "CACHED_RESPONSE_KEY";
 const MENU_URL = "https://docs.google.com/document/d/1kDBSxPb8X4L2TKXWUmm2A-VGuPVTyxmfbq9iwUQQ2nc/export?format=pdf";
 
+const TIMEOUT_MS = 60 * 60 * 1000;
+
 const generationConfig = {
   temperature: 1,
   topP: 0.95,
@@ -94,11 +96,23 @@ export default {
     const previously = await env.JACKS.get(KV_CACHED_RESPONSE_KEY);
 
     if (previously) {
-      return new Response(previously);
+      try {
+        const lastResponse = JSON.parse(previously);
+        const retrievedAt = new Date(lastResponse.retrievedAt);
+        const limit = new Date(+retrievedAt + TIMEOUT_MS);
+        const now = new Date();
+        console.log(now, limit, retrievedAt, now < limit);
+        if (now < limit) {
+          console.log("cached");
+          return new Response(previously);
+        }
+      } catch(e) {
+        await env.JACKS.put(KV_CACHED_RESPONSE_KEY, null);
+        throw new Error(`Unexpected error '${e}' decoding previous '${previous}'`)
+      }
     }
 
     const geminiApiKey = env.GEMINI_API_KEY;
-    console.log("!!!!", env);
     const r = await fetch(MENU_URL);
     const buffer = await r.arrayBuffer();
     const pdf = await getDocumentProxy(new Uint8Array(buffer));
