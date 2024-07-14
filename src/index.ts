@@ -100,7 +100,7 @@ export default {
     j["menuUrl"] = MENU_URL;
     j["retrievedAt"] = (new Date()).toISOString();
 
-    const response = JSON.stringify(j);
+    const response = JSON.stringify(j, null, 2);
     await env.JACKS.put(KV_CACHED_RESPONSE_KEY, response);
 
     return new Response(response);
