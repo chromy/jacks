@@ -6,7 +6,8 @@ export interface Env {
   JACKS: KVNamespace;
 }
 
-const KV_CACHED_RESPONSE_KEY = "CACHED_RESPONSE_KEY";
+const KV_CACHED_RESPONSE_KEY = "CACHED_RESPONSE-";
+const KV_PDF_KEY = "PDF-";
 const MENU_URL = "https://docs.google.com/document/d/1kDBSxPb8X4L2TKXWUmm2A-VGuPVTyxmfbq9iwUQQ2nc/export?format=pdf";
 
 const TIMEOUT_MS = 60 * 60 * 1000;
@@ -52,9 +53,24 @@ async function convertMenuToJson(geminiApiKey: string, menu: string) {
   });
 
   const result = await chatSession.sendMessage(PROMPT + menu);
-  const reply = await result.response.text();
-  const j = JSON.parse(reply);
-  return j;
+  let reply = await result.response.text();
+
+  let i = 0;
+  let j = reply.length-1;
+  for (; i<j && reply[i] !== '{'; ++i);
+  for (; i<j && reply[j] !== '}'; --j);
+  reply = reply.slice(i, j+1)
+  const jsonReply = JSON.parse(reply);
+  return jsonReply;
+}
+
+
+function getKeySuffix(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const hour = date.getUTCHours();
+  return `${year}-${month}-${day}-${hour}`;
 }
 
 
@@ -70,23 +86,15 @@ export default {
       });
     }
 
-    const previously = await env.JACKS.get(KV_CACHED_RESPONSE_KEY);
+    const now = new Date();
+    const suffix = getKeySuffix(now);
+    const responseKey = `${KV_CACHED_RESPONSE_KEY}-${suffix}`;
+    const pdfKey = `${KV_PDF_KEY}-${suffix}`;
+
+    const previously = await env.JACKS.get(responseKey);
 
     if (previously) {
-      try {
-        const lastResponse = JSON.parse(previously);
-        const retrievedAt = new Date(lastResponse.retrievedAt);
-        const limit = new Date(+retrievedAt + TIMEOUT_MS);
-        const now = new Date();
-        console.log(now, limit, retrievedAt, now < limit);
-        if (now < limit) {
-          console.log("cached");
-          return new Response(previously);
-        }
-      } catch(e) {
-        await env.JACKS.put(KV_CACHED_RESPONSE_KEY, null);
-        throw new Error(`Unexpected error '${e}' decoding previous '${previous}'`)
-      }
+      return new Response(previously);
     }
 
     const geminiApiKey = env.GEMINI_API_KEY;
@@ -101,7 +109,8 @@ export default {
     j["retrievedAt"] = (new Date()).toISOString();
 
     const response = JSON.stringify(j, null, 2);
-    await env.JACKS.put(KV_CACHED_RESPONSE_KEY, response);
+    await env.JACKS.put(responseKey, response);
+    await env.JACKS.put(pdfKey, buffer);
 
     return new Response(response);
   },
