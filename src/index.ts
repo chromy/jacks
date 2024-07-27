@@ -6,9 +6,32 @@ export interface Env {
   JACKS: KVNamespace;
 }
 
+enum Location {
+  Benet = "BENET",
+  AllSaints = "ALL_SAINTS"
+}
+
+interface LocationDetails {
+  location: Location;
+  menuUrl: string;
+}
+
+const LOCATION_DETAILS = new Map<Location, LocationDetails>();
+
+LOCATION_DETAILS.set(Location.Benet, {
+  location: Location.Benet,
+  menuUrl: "https://docs.google.com/document/d/1dVYB7lnBgWE0bPhc9SFz0aLrkDfSCulrMctW1gDfCA8/export?format=pdf",
+  name: "Bene't Street",
+});
+
+LOCATION_DETAILS.set(Location.AllSaints, {
+  location: Location.AllSaints,
+  menuUrl: "https://docs.google.com/document/d/1kDBSxPb8X4L2TKXWUmm2A-VGuPVTyxmfbq9iwUQQ2nc/export?format=pdf",
+  name: "All Saints Passage",
+});
+
 const KV_CACHED_RESPONSE_KEY = "CACHED_RESPONSE-";
 const KV_PDF_KEY = "PDF-";
-const MENU_URL = "https://docs.google.com/document/d/1kDBSxPb8X4L2TKXWUmm2A-VGuPVTyxmfbq9iwUQQ2nc/export?format=pdf";
 
 const TIMEOUT_MS = 60 * 60 * 1000;
 
@@ -70,7 +93,52 @@ function getKeySuffix(date: Date): string {
   const month = date.getUTCMonth() + 1;
   const day = date.getUTCDate();
   const hour = date.getUTCHours();
-  return `${year}-${month}-${day}-${hour}`;
+  return [year, month, day, hour].join("-");
+}
+
+
+async function doGet(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const now = new Date();
+  const suffix = getKeySuffix(now);
+  const responseKey = `${KV_CACHED_RESPONSE_KEY}-${suffix}`;
+
+  const previously = await env.JACKS.get(responseKey);
+
+  if (previously) {
+    return new Response(previously);
+  }
+
+  const geminiApiKey = env.GEMINI_API_KEY;
+
+  const locations = [];
+
+  for (const location of [Location.Benet, Location.AllSaints]) {
+    const details = LOCATION_DETAILS.get(location);
+    const pdfKey = `${KV_PDF_KEY}-${location}-${suffix}`;
+    const menuUrl = details.menuUrl;
+    const r = await fetch(menuUrl);
+    const buffer = await r.arrayBuffer();
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const page = await pdf.getPage(1);
+    const textContent = await page.getTextContent();
+    const contents = textContent.items.map((item) => item.str).join("\n");
+    const j = await convertMenuToJson(geminiApiKey, contents);
+    await env.JACKS.put(pdfKey, buffer);
+    j["currentMenuUrl"] = menuUrl;
+    j["name"] = details.name;
+    locations.push(j);
+  }
+
+  const retrievedAt = (new Date()).toISOString();
+  const response = {
+    locations,
+    retrievedAt,
+  };
+
+  const textResponse = JSON.stringify(response, null, 2);
+  await env.JACKS.put(responseKey, textResponse);
+
+  return new Response(textResponse);
 }
 
 
@@ -86,32 +154,6 @@ export default {
       });
     }
 
-    const now = new Date();
-    const suffix = getKeySuffix(now);
-    const responseKey = `${KV_CACHED_RESPONSE_KEY}-${suffix}`;
-    const pdfKey = `${KV_PDF_KEY}-${suffix}`;
-
-    const previously = await env.JACKS.get(responseKey);
-
-    if (previously) {
-      return new Response(previously);
-    }
-
-    const geminiApiKey = env.GEMINI_API_KEY;
-    const r = await fetch(MENU_URL);
-    const buffer = await r.arrayBuffer();
-    const pdf = await getDocumentProxy(new Uint8Array(buffer));
-    const page = await pdf.getPage(1);
-    const textContent = await page.getTextContent();
-    const contents = textContent.items.map((item) => item.str).join("\n");
-    const j = await convertMenuToJson(geminiApiKey, contents);
-    j["menuUrl"] = MENU_URL;
-    j["retrievedAt"] = (new Date()).toISOString();
-
-    const response = JSON.stringify(j, null, 2);
-    await env.JACKS.put(responseKey, response);
-    await env.JACKS.put(pdfKey, buffer);
-
-    return new Response(response);
+    return doGet(request, env, ctx);
   },
 };
