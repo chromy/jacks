@@ -30,7 +30,8 @@ LOCATION_DETAILS.set(Location.AllSaints, {
   name: "All Saints Passage",
 });
 
-const KV_CACHED_RESPONSE_KEY = "CACHED_RESPONSE-";
+const VERSION = 1;
+const KV_CACHED_RESPONSE_KEY = `CACHED_RESPONSE-${VERSION}-`;
 const KV_PDF_KEY = "PDF-";
 
 const TIMEOUT_MS = 60 * 60 * 1000;
@@ -133,6 +134,7 @@ async function doGet(request: Request, env: Env, ctx: ExecutionContext): Promise
   const response = {
     locations,
     retrievedAt,
+    version: VERSION,
   };
 
   const textResponse = JSON.stringify(response, null, 2);
