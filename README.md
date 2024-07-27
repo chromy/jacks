@@ -1,5 +1,7 @@
 # https://jacks.tsundoku.io/
 
+<a href="https://d3js.org"><img src="https://raw.githubusercontent.com/d3/d3/main/docs/public/logo.svg" width="256" height="256"></a>
+
 [Jack's gelato](https://www.jacksgelato.com/) is the best ice-cream shop
 in Cambridge, UK - but it's not the *only* ice-cream shop in Cambridge.
 
