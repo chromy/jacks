@@ -68,7 +68,7 @@ The text is:
 async function convertMenuToJson(geminiApiKey: string, menu: string) {
   const genAI = new GoogleGenerativeAI(geminiApiKey);
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash",
   });
 
   const chatSession = model.startChat({
