@@ -10,12 +10,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.14.1",
-    "typescript": "^5.5.3",
+    "@google/genai": "^1.48.0",
+    "typescript": "^5.9.3",
     "unpdf": "^0.11.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240620.0",
+    "@cloudflare/workers-types": "^4.20260405.1",
     "wrangler": "3.63.2"
   }
 }

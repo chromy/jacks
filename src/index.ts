@@ -1,5 +1,5 @@
 import { extractText, getDocumentProxy } from "unpdf";
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface Env {
   GEMINI_API_KEY: string;
@@ -66,18 +66,21 @@ The text is:
 `;
 
 async function convertMenuToJson(geminiApiKey: string, menu: string) {
-  const genAI = new GoogleGenerativeAI(geminiApiKey);
-  const model = genAI.getGenerativeModel({
-    model: "gemini-3.0-flash",
+  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: PROMPT + menu,
+    config: {
+      temperature: GENERATION_CONFIG.temperature,
+      topP: GENERATION_CONFIG.topP,
+      topK: GENERATION_CONFIG.topK,
+      maxOutputTokens: GENERATION_CONFIG.maxOutputTokens,
+      responseMimeType: GENERATION_CONFIG.responseMimeType,
+    },
   });
 
-  const chatSession = model.startChat({
-    GENERATION_CONFIG,
-    history: []
-  });
-
-  const result = await chatSession.sendMessage(PROMPT + menu);
-  let reply = await result.response.text();
+  let reply = response.text;
 
   let i = 0;
   let j = reply.length-1;
