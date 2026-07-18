@@ -69,7 +69,7 @@ async function convertMenuToJson(geminiApiKey: string, menu: string) {
   const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.5-flash",
     contents: PROMPT + menu,
     config: {
       temperature: GENERATION_CONFIG.temperature,
