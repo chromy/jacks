@@ -54,37 +54,52 @@ const PROMPT = `
 Hi!
 The text below is from an ice cream menu.
 Please report the available ice cream flavours as json.
-The json should match the following format:
-{
-  flavours: [
-    {
-      "name": "Vanilla",
-      "isVegan": false,
-    },
-    {
-      "name": "Alphonso Mango Sorbet",
-      "isVegan": true,
-    }
-  ]
-}
 
 The text is:
 `;
+
+const MENU_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    flavours: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          isVegan: { type: "boolean" },
+        },
+        required: ["name", "isVegan"],
+        propertyOrdering: ["name", "isVegan"],
+      },
+    },
+  },
+  required: ["flavours"],
+  propertyOrdering: ["flavours"],
+};
 
 const PREFERENCE_PROMPT = `
 Hi!
 Below is a JSON list of ice cream flavours currently available, followed by
 a free-text description of a customer's taste preferences.
-Please return, as JSON, the names of only the flavours from the available
-list that this customer would likely enjoy, based on their stated
-preferences. Do not invent flavour names that aren't in the available list.
-The json should match the following format:
-{
-  "flavourNames": ["Vanilla", "Alphonso Mango Sorbet"]
-}
+Please return the names of only the flavours from the available list that
+this customer would likely enjoy, based on their stated preferences. Do not
+invent flavour names that aren't in the available list.
 
 Available flavours:
 `;
+
+const PREFERENCE_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    flavourNames: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: ["flavourNames"],
+  propertyOrdering: ["flavourNames"],
+};
 
 interface Profile {
   name: string;
@@ -94,7 +109,7 @@ interface Profile {
 // TODO: fill in real preference descriptions for each profile.
 const PROFILES: Profile[] = [
   { name: "Hector", preferences: "I love cookie, chocolate, coffee, raspberry, ripples, nuts, fudge, and brownie. For sorbets I like passionfruit, elderflower, and similar." },
-  { name: "Iridium", preferences: "I like caramel/toffee/fudge/sugar flavours, flavours with biscuit/cake/marzipan inclusions and nut/sesame flavours. I also like fruit/sorbet flavours that are very fresh like yuzu/apricot/pear/elderflower. I don't like banana, mint, or those containing alcohols." },
+  { name: "Iridium", preferences: "I like caramel/toffee/fudge/sugar flavours, flavours with biscuit/cake/marzipan inclusions and nut/sesame flavours. I also like fruit/sorbet flavours that are very fresh like yuzu/apricot/pear/elderflower. I don't like banana, mint, rhubarb, cheescake, coconut, basil, or those containing alcohols." },
 ];
 
 function predictedLikedKey(profileName: string): string {
@@ -123,19 +138,15 @@ async function filterFlavoursByPreference(
       topK: GENERATION_CONFIG.topK,
       maxOutputTokens: GENERATION_CONFIG.maxOutputTokens,
       responseMimeType: GENERATION_CONFIG.responseMimeType,
+      responseJsonSchema: PREFERENCE_JSON_SCHEMA,
     },
   });
 
-  let reply = response.text;
+  const reply = response.text;
   if (!reply) {
     throw new Error("Gemini returned an empty response");
   }
 
-  let i = 0;
-  let j = reply.length - 1;
-  for (; i < j && reply[i] !== '{'; ++i);
-  for (; i < j && reply[j] !== '}'; --j);
-  reply = reply.slice(i, j + 1);
   const { flavourNames } = JSON.parse(reply) as { flavourNames: string[] };
 
   const wanted = new Set(flavourNames);
@@ -154,19 +165,15 @@ async function convertMenuToJson(geminiApiKey: string, menu: string) {
       topK: GENERATION_CONFIG.topK,
       maxOutputTokens: GENERATION_CONFIG.maxOutputTokens,
       responseMimeType: GENERATION_CONFIG.responseMimeType,
+      responseJsonSchema: MENU_JSON_SCHEMA,
     },
   });
 
-  let reply = response.text;
+  const reply = response.text;
   if (!reply) {
     throw new Error("Gemini returned an empty response");
   }
 
-  let i = 0;
-  let j = reply.length-1;
-  for (; i<j && reply[i] !== '{'; ++i);
-  for (; i<j && reply[j] !== '}'; --j);
-  reply = reply.slice(i, j+1)
   const jsonReply = JSON.parse(reply);
   return jsonReply;
 }
