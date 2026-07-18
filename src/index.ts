@@ -6,6 +6,11 @@ export interface Env {
   JACKS: KVNamespace;
 }
 
+interface Flavour {
+  name: string;
+  isVegan: boolean;
+}
+
 enum Location {
   Benet = "BENET",
   AllSaints = "ALL_SAINTS"
@@ -14,6 +19,7 @@ enum Location {
 interface LocationDetails {
   location: Location;
   menuUrl: string;
+  name: string;
 }
 
 const LOCATION_DETAILS = new Map<Location, LocationDetails>();
@@ -65,6 +71,77 @@ The json should match the following format:
 The text is:
 `;
 
+const PREFERENCE_PROMPT = `
+Hi!
+Below is a JSON list of ice cream flavours currently available, followed by
+a free-text description of a customer's taste preferences.
+Please return, as JSON, the names of only the flavours from the available
+list that this customer would likely enjoy, based on their stated
+preferences. Do not invent flavour names that aren't in the available list.
+The json should match the following format:
+{
+  "flavourNames": ["Vanilla", "Alphonso Mango Sorbet"]
+}
+
+Available flavours:
+`;
+
+interface Profile {
+  name: string;
+  preferences: string;
+}
+
+// TODO: fill in real preference descriptions for each profile.
+const PROFILES: Profile[] = [
+  { name: "Hector", preferences: "I love cookie, chocolate, coffee, raspberry, ripples, nuts, fudge, and brownie. For sorbets I like passionfruit, elderflower, and similar." },
+  { name: "Iridium", preferences: "I like caramel/toffee/fudge/sugar flavours, flavours with biscuit/cake/marzipan inclusions and nut/sesame flavours. I also like fruit/sorbet flavours that are very fresh like yuzu/apricot/pear/elderflower. I don't like banana, mint, or those containing alcohols." },
+];
+
+function predictedLikedKey(profileName: string): string {
+  return `${profileName.charAt(0).toLowerCase()}${profileName.slice(1)}PredictedLiked`;
+}
+
+async function filterFlavoursByPreference(
+  geminiApiKey: string,
+  currentFlavours: Flavour[],
+  preferences: string
+): Promise<Flavour[]> {
+  const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+
+  const contents =
+    PREFERENCE_PROMPT +
+    JSON.stringify(currentFlavours, null, 2) +
+    "\n\nCustomer preferences:\n" +
+    preferences;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.5-flash",
+    contents,
+    config: {
+      temperature: GENERATION_CONFIG.temperature,
+      topP: GENERATION_CONFIG.topP,
+      topK: GENERATION_CONFIG.topK,
+      maxOutputTokens: GENERATION_CONFIG.maxOutputTokens,
+      responseMimeType: GENERATION_CONFIG.responseMimeType,
+    },
+  });
+
+  let reply = response.text;
+  if (!reply) {
+    throw new Error("Gemini returned an empty response");
+  }
+
+  let i = 0;
+  let j = reply.length - 1;
+  for (; i < j && reply[i] !== '{'; ++i);
+  for (; i < j && reply[j] !== '}'; --j);
+  reply = reply.slice(i, j + 1);
+  const { flavourNames } = JSON.parse(reply) as { flavourNames: string[] };
+
+  const wanted = new Set(flavourNames);
+  return currentFlavours.filter((f) => wanted.has(f.name));
+}
+
 async function convertMenuToJson(geminiApiKey: string, menu: string) {
   const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
@@ -81,6 +158,9 @@ async function convertMenuToJson(geminiApiKey: string, menu: string) {
   });
 
   let reply = response.text;
+  if (!reply) {
+    throw new Error("Gemini returned an empty response");
+  }
 
   let i = 0;
   let j = reply.length-1;
@@ -118,6 +198,9 @@ async function doGet(request: Request, env: Env, ctx: ExecutionContext): Promise
 
   for (const location of [Location.Benet, Location.AllSaints]) {
     const details = LOCATION_DETAILS.get(location);
+    if (!details) {
+      throw new Error(`No location details found for ${location}`);
+    }
     const pdfKey = `${KV_PDF_KEY}-${location}-${suffix}`;
     const menuUrl = details.menuUrl;
     const r = await fetch(menuUrl);
@@ -125,11 +208,24 @@ async function doGet(request: Request, env: Env, ctx: ExecutionContext): Promise
     const pdf = await getDocumentProxy(new Uint8Array(buffer));
     const page = await pdf.getPage(1);
     const textContent = await page.getTextContent();
-    const contents = textContent.items.map((item) => item.str).join("\n");
+    const contents = textContent.items
+      .filter((item) => 'str' in item)
+      .map((item) => (item as { str: string }).str)
+      .join("\n");
     const j = await convertMenuToJson(geminiApiKey, contents);
     await env.JACKS.put(pdfKey, buffer);
     j["currentMenuUrl"] = menuUrl;
     j["name"] = details.name;
+
+    for (const profile of PROFILES) {
+      const liked = await filterFlavoursByPreference(geminiApiKey, j.flavours, profile.preferences);
+      const likedNames = new Set(liked.map((f: Flavour) => f.name));
+      const key = predictedLikedKey(profile.name);
+      for (const flavour of j.flavours) {
+        flavour[key] = likedNames.has(flavour.name);
+      }
+    }
+
     locations.push(j);
   }
 
