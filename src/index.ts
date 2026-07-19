@@ -109,7 +109,7 @@ interface Profile {
 // TODO: fill in real preference descriptions for each profile.
 const PROFILES: Profile[] = [
   { name: "Hector", preferences: "I love cookie, chocolate, coffee, raspberry, ripples, nuts, fudge, and brownie. For sorbets I like passionfruit, elderflower, and similar." },
-  { name: "Iridium", preferences: "I like caramel/toffee/fudge/sugar flavours, flavours with biscuit/cake/marzipan inclusions and nut/sesame flavours. I also like fruit/sorbet flavours that are very fresh like yuzu/apricot/pear/elderflower. I don't like banana, mint, rhubarb, cheescake, coconut, basil, or those containing alcohols." },
+  { name: "Iridium", preferences: "I like caramel/toffee/fudge/sugar flavours, flavours with biscuit/cake/marzipan inclusions and nut/sesame flavours. I also like fruit/sorbet flavours that are very fresh like yuzu/apricot/pear/elderflower. I don't like banana, coffee, mint, rhubarb, cheescake, coconut, basil, or those containing alcohols." },
 ];
 
 function predictedLikedKey(profileName: string): string {
